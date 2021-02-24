@@ -9,22 +9,27 @@ import org.springframework.data.repository.query.Param
 
 @Entity
 @Immutable
+@IdClass(DataSnapshotId::class)
 @Table(name = "data_snapshot")
 data class DataSnapshot(
-  @EmbeddedId
-  val pk: DataSnapshotId,
+
+  @Id
+  val id: String,
+
+  @Id
+  val revision: Int,
+
   @Column
   val data: String,
-) {
-  constructor(id: String, revision: Int, data: String): this(DataSnapshotId(id, revision), data)
-}
+)
 
 @Embeddable
 data class DataSnapshotId(val id: String, val revision: Int) : Serializable
 
 interface DataSnapshotRepository : JpaRepository<DataSnapshot, DataSnapshotId> {
+
   // returns the latest snapshot for an id
-  fun findFirstByPkIdOrderByPkRevisionDesc(id: String): DataSnapshot?
+  fun findFirstByIdOrderByRevisionDesc(id: String): DataSnapshot?
 
   // also returns the latest snapshot for an id
   @Query(
