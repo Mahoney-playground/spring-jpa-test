@@ -4,25 +4,19 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.extensions.spring.SpringExtension
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
-import java.sql.Connection
-import javax.persistence.EntityManager
-import javax.persistence.EntityManagerFactory
-import javax.sql.DataSource
 import org.flywaydb.core.Flyway
-import org.hibernate.dialect.PostgreSQL10Dialect
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Configuration
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories
 import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.jdbc.datasource.SingleConnectionDataSource
-import org.springframework.orm.jpa.JpaTransactionManager
-import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter
 import org.springframework.test.context.ContextConfiguration
-import org.springframework.transaction.PlatformTransactionManager
+import java.sql.Connection
+import javax.persistence.EntityManager
+import javax.sql.DataSource
 
 
-@ContextConfiguration(classes = [(Initializer::class)])
+@ContextConfiguration
 class SpringJpaSpec(
   dataSnapshotRepository: DataSnapshotRepository,
   entityManager: EntityManager,
@@ -41,42 +35,24 @@ class SpringJpaSpec(
 }) {
   override fun extensions() = listOf(SpringExtension)
 
-  companion object {
-    @Suppress("unused")
-    @JvmStatic
-    fun flywayInit(connection: Connection) {
-      Flyway.configure()
-        .dataSource(SingleConnectionDataSource(connection, true))
-        .load().migrate()
-    }
+  @Configuration
+  @ComponentScan
+  @Suppress("unused")
+  class Initializer {
+
+    @Bean
+    fun dataSource(): DataSource = DriverManagerDataSource(
+      "jdbc:tc:postgresql:13.2-alpine:///test?TC_DAEMON=true&TC_INITFUNCTION=uk.org.lidalia.springjpatest.FlywayInit::flywayInit"
+    )
   }
 }
 
-@Configuration
-@EnableJpaRepositories
-class Initializer {
-
-  @Bean
-  fun dataSource(): DataSource = DriverManagerDataSource("jdbc:tc:postgresql:13.2-alpine:///test?TC_DAEMON=true&TC_INITFUNCTION=uk.org.lidalia.springjpatest.SpringJpaSpec::flywayInit")
-
-  @Bean
-  fun entityManagerFactory(
-    dataSource: DataSource
-  ) = LocalContainerEntityManagerFactoryBean().apply {
-    this.dataSource = dataSource
-    this.setPackagesToScan("uk.org.lidalia.springjpatest")
-    this.jpaVendorAdapter = HibernateJpaVendorAdapter()
-    this.jpaPropertyMap = mapOf(
-      "hibernate.hbm2ddl.auto" to "validate",
-      "hibernate.dialect" to PostgreSQL10Dialect()
-    )
+@Suppress("unused")
+object FlywayInit {
+  @JvmStatic
+  fun flywayInit(connection: Connection) {
+    Flyway.configure()
+      .dataSource(SingleConnectionDataSource(connection, true))
+      .load().migrate()
   }
-
-  @Bean
-  fun transactionManager(
-    entityManagerFactory: EntityManagerFactory
-  ): PlatformTransactionManager =
-    JpaTransactionManager().apply {
-      this.entityManagerFactory = entityManagerFactory
-    }
 }
